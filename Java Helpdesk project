@@ -236,7 +236,7 @@ public class CreateTicketServlet extends HttpServlet {
     }
 }
 
-delete ticketservet.java
+Delete ticketservet.java
 
 
 package com.helpdesk.servlet;
@@ -286,7 +286,9 @@ public class DeleteTicketServlet extends HttpServlet {
     }
 }
 
-listticketservlet.java
+
+
+list ticketservlet.java
 
 ackage com.helpdesk.servlet;
 
