@@ -1,0 +1,629 @@
+
+
+Ticket DAO.java
+
+package com.helpdesk.dao;
+
+import com.helpdesk.model.Ticket;
+import com.helpdesk.util.DBConnection;
+
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class TicketDAO {
+
+    // CREATE: Insert a new ticket
+    public boolean addTicket(Ticket t) throws SQLException {
+
+        String sql = "INSERT INTO tickets "
+                + "(user_name, email, issue_title, description, priority) "
+                + "VALUES (?, ?, ?, ?, ?)";
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, t.getUserName());
+            ps.setString(2, t.getEmail());
+            ps.setString(3, t.getIssueTitle());
+            ps.setString(4, t.getDescription());
+            ps.setString(5, t.getPriority());
+
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    // READ: Get all tickets
+    public List<Ticket> getAllTickets() throws SQLException {
+
+        List<Ticket> list = new ArrayList<>();
+
+        String sql = "SELECT * FROM tickets ORDER BY ticket_id DESC";
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+
+                Ticket t = new Ticket();
+
+                t.setTicketId(rs.getInt("ticket_id"));
+                t.setUserName(rs.getString("user_name"));
+                t.setEmail(rs.getString("email"));
+                t.setIssueTitle(rs.getString("issue_title"));
+                t.setDescription(rs.getString("description"));
+                t.setPriority(rs.getString("priority"));
+                t.setStatus(rs.getString("status"));
+
+                list.add(t);
+            }
+        }
+
+        return list;
+    }
+
+    // UPDATE: Change ticket status
+    public boolean updateStatus(int id, String status)
+            throws SQLException {
+
+        String sql = "UPDATE tickets SET status = ? "
+                + "WHERE ticket_id = ?";
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, status);
+            ps.setInt(2, id);
+
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    // DELETE: Remove a ticket
+    public boolean deleteTicket(int id) throws SQLException {
+
+        String sql = "DELETE FROM tickets WHERE ticket_id = ?";
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setInt(1, id);
+
+            return ps.executeUpdate() > 0;
+        }
+    }
+}
+
+
+
+Ticket.java
+
+package com.helpdesk.model;
+
+public class Ticket {
+
+    private int ticketId;
+    private String userName;
+    private String email;
+    private String issueTitle;
+    private String description;
+    private String priority;
+    private String status;
+
+    public Ticket() {
+    }
+
+    public int getTicketId() {
+        return ticketId;
+    }
+
+    public void setTicketId(int ticketId) {
+        this.ticketId = ticketId;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getIssueTitle() {
+        return issueTitle;
+    }
+
+    public void setIssueTitle(String issueTitle) {
+        this.issueTitle = issueTitle;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public void setPriority(String priority) {
+        this.priority = priority;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+}
+
+
+
+Create ticketservelt.java
+
+
+
+package com.helpdesk.servlet;
+
+import com.helpdesk.dao.TicketDAO;
+import com.helpdesk.model.Ticket;
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
+import java.sql.SQLException;
+
+@WebServlet("/create-ticket")
+public class CreateTicketServlet extends HttpServlet {
+
+    @Override
+    protected void doPost(HttpServletRequest request,
+                          HttpServletResponse response)
+            throws ServletException, IOException {
+
+        request.setCharacterEncoding("UTF-8");
+
+        Ticket ticket = new Ticket();
+
+        ticket.setUserName(request.getParameter("userName"));
+        ticket.setEmail(request.getParameter("email"));
+        ticket.setIssueTitle(request.getParameter("issueTitle"));
+        ticket.setDescription(request.getParameter("description"));
+
+        String priority = request.getParameter("priority");
+
+        if (!"Low".equals(priority)
+                && !"Medium".equals(priority)
+                && !"High".equals(priority)) {
+            priority = "Medium";
+        }
+
+        ticket.setPriority(priority);
+
+        try {
+            TicketDAO dao = new TicketDAO();
+
+            if (dao.addTicket(ticket)) {
+                response.sendRedirect(
+                        request.getContextPath() + "/list-tickets");
+            } else {
+                response.sendError(
+                        HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                        "Ticket could not be created.");
+            }
+
+        } catch (SQLException e) {
+            throw new ServletException("Database error", e);
+        }
+    }
+}
+
+delete ticketservet.java
+
+
+package com.helpdesk.servlet;
+
+import com.helpdesk.dao.TicketDAO;
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
+import java.sql.SQLException;
+
+@WebServlet("/delete-ticket")
+public class DeleteTicketServlet extends HttpServlet {
+
+    @Override
+    protected void doPost(HttpServletRequest request,
+                          HttpServletResponse response)
+            throws ServletException, IOException {
+
+        try {
+            int id = Integer.parseInt(
+                    request.getParameter("ticketId"));
+
+            TicketDAO dao = new TicketDAO();
+            boolean deleted = dao.deleteTicket(id);
+
+            if (deleted) {
+                response.sendRedirect(
+                        request.getContextPath() + "/list-tickets");
+            } else {
+                response.sendError(
+                        HttpServletResponse.SC_NOT_FOUND,
+                        "Ticket not found.");
+            }
+
+        } catch (NumberFormatException e) {
+            response.sendError(
+                    HttpServletResponse.SC_BAD_REQUEST,
+                    "Invalid ticket ID.");
+        } catch (SQLException e) {
+            throw new ServletException("Unable to delete ticket", e);
+        }
+    }
+}
+
+listticketservlet.java
+
+ackage com.helpdesk.servlet;
+
+import com.helpdesk.dao.TicketDAO;
+import com.helpdesk.model.Ticket;
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.sql.SQLException;
+import java.util.List;
+
+@WebServlet("/list-tickets")
+public class ListTicketsServlet extends HttpServlet {
+
+    // Escape database text before placing it in HTML.
+    private String escape(String s) {
+        if (s == null) return "";
+
+        return s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    @Override
+    protected void doGet(HttpServletRequest request,
+                         HttpServletResponse response)
+            throws ServletException, IOException {
+
+        response.setContentType("text/html;charset=UTF-8");
+
+        try {
+            List<Ticket> tickets =
+                    new TicketDAO().getAllTickets();
+
+            PrintWriter out = response.getWriter();
+            String context = request.getContextPath();
+
+            out.println("<!DOCTYPE html><html><head>");
+            out.println("<meta charset='UTF-8'>");
+            out.println("<title>All Tickets</title>");
+            out.println("<link rel='stylesheet' href='"
+                    + context + "/style.css'>");
+
+            out.println("<style>");
+            out.println("table{width:100%;border-collapse:collapse;"
+                    + "background:white;margin-top:20px;}");
+            out.println("th,td{border:1px solid #ddd;"
+                    + "padding:9px;text-align:left;}");
+            out.println("th{background:#2563eb;color:white;}");
+            out.println(".actions form{margin:5px 0;}");
+            out.println(".actions select,.actions button{width:auto;"
+                    + "margin:3px;padding:7px;}");
+            out.println(".delete{background:#dc2626;}");
+            out.println("</style></head><body>");
+
+            out.println("<div class='container' "
+                    + "style='max-width:1200px'>");
+            out.println("<h1>IT Help Desk Tickets</h1>");
+            out.println("<a href='" + context
+                    + "/index.html'>Create New Ticket</a>");
+
+            out.println("<table><tr>");
+            out.println("<th>ID</th><th>User</th><th>Email</th>");
+            out.println("<th>Issue</th><th>Description</th>");
+            out.println("<th>Priority</th><th>Status</th>");
+            out.println("<th>Actions</th></tr>");
+
+            for (Ticket t : tickets) {
+
+                out.println("<tr>");
+                out.println("<td>" + t.getTicketId() + "</td>");
+                out.println("<td>" + escape(t.getUserName()) + "</td>");
+                out.println("<td>" + escape(t.getEmail()) + "</td>");
+                out.println("<td>" + escape(t.getIssueTitle()) + "</td>");
+                out.println("<td>" + escape(t.getDescription()) + "</td>");
+                out.println("<td>" + escape(t.getPriority()) + "</td>");
+                out.println("<td>" + escape(t.getStatus()) + "</td>");
+                out.println("<td class='actions'>");
+
+                out.println("<form method='post' action='"
+                        + context + "/update-ticket'>");
+
+                out.println("<input type='hidden' name='ticketId' "
+                        + "value='" + t.getTicketId() + "'>");
+
+                out.println("<select name='status'>");
+
+                String[] statuses = {
+                    "Open", "In Progress", "Resolved", "Closed"
+                };
+
+                for (String status : statuses) {
+                    out.println("<option value='" + status + "' "
+                            + (status.equals(t.getStatus())
+                            ? "selected" : "") + ">"
+                            + status + "</option>");
+                }
+
+                out.println("</select>");
+                out.println("<button type='submit'>Update</button>");
+                out.println("</form>");
+
+                out.println("<form method='post' action='"
+                        + context + "/delete-ticket'>");
+
+                out.println("<input type='hidden' name='ticketId' "
+                        + "value='" + t.getTicketId() + "'>");
+
+                out.println("<button class='delete' type='submit'>"
+                        + "Delete</button>");
+
+                out.println("</form>");
+                out.println("</td></tr>");
+            }
+
+            out.println("</table></div></body></html>");
+
+        } catch (SQLException e) {
+            throw new ServletException("Unable to load tickets", e);
+        }
+    }
+}
+
+
+updatetickectservlet.java
+
+package com.helpdesk.servlet;
+
+import com.helpdesk.dao.TicketDAO;
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
+import java.sql.SQLException;
+
+@WebServlet("/update-ticket")
+public class UpdateTicketServlet extends HttpServlet {
+
+    @Override
+    protected void doPost(HttpServletRequest request,
+                          HttpServletResponse response)
+            throws ServletException, IOException {
+
+        try {
+            int id = Integer.parseInt(
+                    request.getParameter("ticketId"));
+
+            String status = request.getParameter("status");
+
+            if (!"Open".equals(status)
+                    && !"In Progress".equals(status)
+                    && !"Resolved".equals(status)
+                    && !"Closed".equals(status)) {
+                response.sendError(
+                        HttpServletResponse.SC_BAD_REQUEST,
+                        "Invalid ticket status.");
+                return;
+            }
+
+            TicketDAO dao = new TicketDAO();
+            boolean updated = dao.updateStatus(id, status);
+
+            if (updated) {
+                response.sendRedirect(
+                        request.getContextPath() + "/list-tickets");
+            } else {
+                response.sendError(
+                        HttpServletResponse.SC_NOT_FOUND,
+                        "Ticket not found.");
+            }
+
+        } catch (NumberFormatException e) {
+            response.sendError(
+                    HttpServletResponse.SC_BAD_REQUEST,
+                    "Invalid ticket ID.");
+        } catch (SQLException e) {
+            throw new ServletException("Unable to update ticket", e);
+        }
+    }
+}
+
+
+DBC connection.java
+
+package com.helpdesk.util;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+
+public class DBConnection {
+
+    public static Connection getConnection() throws SQLException {
+
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+        } catch (ClassNotFoundException e) {
+            throw new SQLException("MySQL Driver not found", e);
+        }
+
+        String url = "jdbc:mysql://localhost:3306/helpdesk_db";
+        String user = "root";
+        String password ="Hpyb@2004";
+
+        return DriverManager.getConnection(url, user, password);
+    }
+}
+
+
+Hmtl
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Help Desk</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>IT Help Desk</h1>
+        <p>Report your technical problem below.</p>
+
+        <form action="create-ticket" method="post">
+
+            <label>Your Name</label>
+            <input type="text" name="userName" required>
+
+            <label>Email Address</label>
+            <input type="email" name="email" required>
+
+            <label>Issue Title</label>
+            <input type="text" name="issueTitle" required>
+
+            <label>Problem Description</label>
+            <textarea name="description" rows="4"
+                      required></textarea>
+
+            <label>Priority</label>
+            <select name="priority">
+                <option value="Low">Low</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="High">High</option>
+            </select>
+
+            <button type="submit">Submit Ticket</button>
+        </form>
+
+        <a href="list-tickets">View All Tickets</a>
+    </div>
+
+</body>
+</html>
+
+
+style.css
+
+@charset "UTF-8";
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f1f5f9;
+    margin: 0;
+    padding: 30px;
+}
+
+.container {
+    max-width: 550px;
+    margin: 30px auto;
+    background-color: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 3px 12px #cccccc;
+}
+
+h1 {
+    text-align: center;
+    color: #1d4ed8;
+}
+
+p {
+    text-align: center;
+    color: #555555;
+}
+
+label {
+    display: block;
+    margin-top: 15px;
+    font-weight: bold;
+}
+
+input, textarea, select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px;
+    margin-top: 6px;
+    border: 1px solid #cccccc;
+    border-radius: 5px;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 20px;
+    background-color: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #1d4ed8;
+}
+
+a {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    color: #2563eb;
+}
+
+
+
+
